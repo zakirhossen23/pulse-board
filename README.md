@@ -7,7 +7,17 @@
 **PulseBoard** is a modern, collaborative team task board built natively on **Dodil cloud services** (DataK3, appid, Ignite, Dodil Models) with a dual-door architecture: a responsive drag-and-drop web application and a rich **Model Context Protocol (MCP)** interface for Claude and ChatGPT.
 
 - **Dodil Git (Official Contest Entry)**: [https://git.dodil.io/merchant-eye/pulse-board](https://git.dodil.io/merchant-eye/pulse-board)
+- **Live Deployed App**: [https://pulse-board-merchant--eye-8080.ignite.dodil.cloud](https://pulse-board-merchant--eye-8080.ignite.dodil.cloud)
 - **GitHub Mirror**: [https://github.com/zakirhossen23/pulse-board](https://github.com/zakirhossen23/pulse-board)
+
+### Demo Accounts for Instant Evaluation
+The live app has pre-configured test users ready to sign in:
+
+| Role | Email | Password | Permissions |
+|---|---|---|---|
+| **Owner** | `owner@pulseboard.io` | `PulseOwner123!` | Full control, manages members, edits all cards |
+| **Member** | `member@pulseboard.io` | `PulseMember123!` | Edits, moves, assigns, and creates cards |
+| **Viewer** | `viewer@pulseboard.io` | `PulseViewer123!` | Read-only inspection (cannot edit or move cards) |
 
 Anyone can **remix** PulseBoard into their own Dodil organization with a single command and have a live, fully-functional Kanban board running in minutes.
 
