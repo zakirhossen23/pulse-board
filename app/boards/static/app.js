@@ -148,6 +148,13 @@ async function switchBoard(boardId) {
 
   allCards = currentBoard.cards || [];
   renderBoard();
+
+  // Support direct card modal opening via ?open=<cardId>
+  const urlParams = new URLSearchParams(window.location.search);
+  const openId = urlParams.get('open');
+  if (openId) {
+    setTimeout(() => openCardDetails(openId), 200);
+  }
 }
 
 /* Board & Card Rendering */

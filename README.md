@@ -4,6 +4,8 @@
 [![GitHub](https://img.shields.io/badge/GitHub-zakirhossen23%2Fpulse--board-blue?logo=github)](https://github.com/zakirhossen23/pulse-board)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+![PulseBoard Showcase](pulseboard-showcase.png)
+
 **PulseBoard** is a modern, collaborative team task board built natively on **Dodil cloud services** (DataK3, appid, Ignite, Dodil Models) with a dual-door architecture: a responsive drag-and-drop web application and a rich **Model Context Protocol (MCP)** interface for Claude and ChatGPT.
 
 - **Dodil Git (Official Contest Entry)**: [https://git.dodil.io/merchant-eye/pulse-board](https://git.dodil.io/merchant-eye/pulse-board)
