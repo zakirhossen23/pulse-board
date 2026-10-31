@@ -183,6 +183,8 @@ async function openCardDetails(cardId) {
   const card = allCards.find(c => c.id === cardId);
   if (!card) return;
 
+  switchDescTab('write');
+
   document.getElementById('modalTitle').value = card.title;
   document.getElementById('modalListBadge').innerText = card.list_name;
   document.getElementById('modalDesc').value = card.description || '';
@@ -332,12 +334,12 @@ async function aiFindSimilarCards() {
 async function generateBoardSummary() {
   if (!currentBoard) return;
   openModal('summaryModal');
-  document.getElementById('summaryContent').innerText = 'Generating daily standup summary via Dodil Models...';
+  document.getElementById('summaryContent').innerHTML = '<div class="text-violet-600 font-medium animate-pulse">Generating daily standup summary via Dodil Models (kimi-k2.6)...</div>';
   try {
     const res = await j(`/api/boards/${currentBoard.id}/summary`);
-    document.getElementById('summaryContent').innerText = res.summary;
+    document.getElementById('summaryContent').innerHTML = renderMarkdown(res.summary);
   } catch (err) {
-    document.getElementById('summaryContent').innerText = 'AI summary failed: ' + err.message;
+    document.getElementById('summaryContent').innerHTML = '<div class="text-rose-600 font-semibold">AI summary failed: ' + escapeHtml(err.message) + '</div>';
   }
 }
 
@@ -458,6 +460,47 @@ async function loadMyPlate(thisWeek) {
     `).join('');
   } catch (err) {
     box.innerHTML = 'Failed to load cards: ' + err.message;
+  }
+}
+
+/* Markdown Renderer */
+function renderMarkdown(md) {
+  if (!md) return '';
+  if (typeof marked !== 'undefined' && marked.parse) {
+    try {
+      return marked.parse(md);
+    } catch (e) {}
+  }
+  return escapeHtml(md)
+    .replace(/^### (.*$)/gim, '<h3 class="font-bold text-sm text-slate-800 mt-2 mb-1">$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2 class="font-bold text-base text-slate-900 mt-3 mb-1">$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1 class="font-black text-lg text-slate-900 mt-3 mb-1">$1</h1>')
+    .replace(/\*\*(.*?)\*\*/gim, '<strong class="font-bold text-slate-900">$1</strong>')
+    .replace(/\*(.*?)\*/gim, '<em class="italic">$1</em>')
+    .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
+    .replace(/\n/gim, '<br>');
+}
+
+/* Description Editor Tab Switcher */
+function switchDescTab(tab) {
+  const isWrite = tab === 'write';
+  const writeBtn = document.getElementById('descTabWrite');
+  const prevBtn = document.getElementById('descTabPreview');
+  if (writeBtn && prevBtn) {
+    writeBtn.className = isWrite ? 'px-2 py-0.5 rounded font-bold bg-slate-200 text-slate-700' : 'px-2 py-0.5 rounded text-slate-500 hover:text-slate-700';
+    prevBtn.className = !isWrite ? 'px-2 py-0.5 rounded font-bold bg-slate-200 text-slate-700' : 'px-2 py-0.5 rounded text-slate-500 hover:text-slate-700';
+  }
+  const textarea = document.getElementById('modalDesc');
+  const preview = document.getElementById('modalDescPreview');
+  if (textarea && preview) {
+    if (isWrite) {
+      textarea.classList.remove('hidden');
+      preview.classList.add('hidden');
+    } else {
+      textarea.classList.add('hidden');
+      preview.classList.remove('hidden');
+      preview.innerHTML = renderMarkdown(textarea.value) || '<div class="text-slate-400 italic">No description provided yet.</div>';
+    }
   }
 }
 

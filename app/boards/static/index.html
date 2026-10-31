@@ -6,10 +6,22 @@
   <title>PulseBoard - Team Kanban</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     .card-drag-over { border: 2px dashed #6366f1 !important; background: #eef2ff !important; }
     .col-drag-over { background: #e0e7ff !important; }
     .grabbing { cursor: grabbing !important; }
+    .markdown-body h1 { font-size: 1.15rem; font-weight: 800; margin-top: 0.75rem; margin-bottom: 0.35rem; color: #1e1b4b; }
+    .markdown-body h2 { font-size: 1.05rem; font-weight: 700; margin-top: 0.65rem; margin-bottom: 0.3rem; color: #312e81; }
+    .markdown-body h3 { font-size: 0.95rem; font-weight: 600; margin-top: 0.5rem; margin-bottom: 0.25rem; color: #4338ca; }
+    .markdown-body p { margin-bottom: 0.5rem; line-height: 1.5; }
+    .markdown-body ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+    .markdown-body ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+    .markdown-body li { margin-bottom: 0.25rem; }
+    .markdown-body strong { font-weight: 700; color: #0f172a; }
+    .markdown-body blockquote { border-left: 3px solid #8b5cf6; padding-left: 0.75rem; color: #475569; font-style: italic; margin: 0.5rem 0; }
+    .markdown-body code { background: #ede9fe; color: #5b21b6; padding: 0.1rem 0.35rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+    .markdown-body pre { background: #0f172a; color: #f8fafc; padding: 0.75rem; border-radius: 8px; overflow-x: auto; margin: 0.5rem 0; }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
@@ -198,8 +210,15 @@
 
         <!-- Description -->
         <div>
-          <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Description & Notes</label>
-          <textarea id="modalDesc" rows="4" placeholder="Add detailed notes or requirements..." class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 focus:ring-1 focus:ring-indigo-500 font-mono"></textarea>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block">Description & Notes (Markdown supported)</label>
+            <div class="flex gap-1 text-[11px]">
+              <button type="button" id="descTabWrite" onclick="switchDescTab('write')" class="px-2 py-0.5 rounded font-bold bg-slate-200 text-slate-700">Write</button>
+              <button type="button" id="descTabPreview" onclick="switchDescTab('preview')" class="px-2 py-0.5 rounded text-slate-500 hover:text-slate-700">Preview</button>
+            </div>
+          </div>
+          <textarea id="modalDesc" rows="4" placeholder="Add detailed notes or requirements (Markdown supported)..." class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 focus:ring-1 focus:ring-indigo-500 font-mono"></textarea>
+          <div id="modalDescPreview" class="hidden w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 min-h-[96px] markdown-body"></div>
         </div>
 
         <!-- Card Dependencies (Blocked By) -->
@@ -317,7 +336,7 @@
         </h3>
         <button onclick="closeModal('summaryModal')" class="text-slate-400 hover:text-slate-600">✕</button>
       </div>
-      <div id="summaryContent" class="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto bg-violet-50/50 p-4 rounded-xl border border-violet-100">
+      <div id="summaryContent" class="text-xs text-slate-700 leading-relaxed max-h-96 overflow-y-auto bg-violet-50/50 p-4 rounded-xl border border-violet-100 markdown-body">
         Generating summary via Dodil Models...
       </div>
     </div>
