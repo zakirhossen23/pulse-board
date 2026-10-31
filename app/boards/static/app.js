@@ -1,4 +1,4 @@
-// PulseBoard Client Application
+// PulseBoard Client Application - Trello-Inspired Modern Experience
 let currentBoard = null;
 let currentCardId = null;
 let allCards = [];
@@ -14,15 +14,89 @@ const j = (url, opts = {}) => fetch(url, {
   return data;
 });
 
+/* Theme Management */
+function setTheme(theme) {
+  const body = document.getElementById('boardBody');
+  if (!body) return;
+  body.className = body.className.replace(/theme-\w+/g, '');
+  body.classList.add(`theme-${theme}`);
+  try {
+    localStorage.setItem('pulseboard_theme', theme);
+  } catch (e) {}
+}
+
+function initTheme() {
+  let saved = 'blue';
+  try {
+    saved = localStorage.getItem('pulseboard_theme') || 'blue';
+  } catch (e) {}
+  setTheme(saved);
+}
+
+/* User & Init */
 async function init() {
+  initTheme();
   try {
     const me = await j('/api/me');
     currentUser = me.email;
-    document.getElementById('userEmail').innerText = me.email || 'Anonymous';
+    const emailEl = document.getElementById('userEmail');
+    if (emailEl) emailEl.innerText = me.email || 'Anonymous';
+    const avatarBadge = document.getElementById('userAvatarBadge');
+    if (avatarBadge) avatarBadge.innerText = getInitials(me.email || 'U');
   } catch (err) {}
   await loadBoards();
 }
 
+/* Trello Label Color Generator */
+function getLabelColorClass(label) {
+  const colors = [
+    'bg-emerald-500 text-white',
+    'bg-amber-400 text-amber-950 font-bold',
+    'bg-orange-500 text-white',
+    'bg-rose-500 text-white',
+    'bg-purple-600 text-white',
+    'bg-blue-600 text-white',
+    'bg-teal-500 text-white',
+    'bg-pink-500 text-white',
+    'bg-indigo-600 text-white'
+  ];
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) {
+    hash = label.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+}
+
+/* User Initials & Avatar Color */
+function getInitials(email) {
+  if (!email) return '?';
+  const name = email.split('@')[0];
+  const parts = name.split(/[._-]/);
+  if (parts.length > 1) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+}
+
+function getAvatarBg(email) {
+  const bgs = [
+    'from-indigo-500 to-indigo-700',
+    'from-blue-500 to-blue-700',
+    'from-emerald-500 to-emerald-700',
+    'from-violet-500 to-violet-700',
+    'from-amber-500 to-amber-700',
+    'from-rose-500 to-rose-700',
+    'from-teal-500 to-teal-700'
+  ];
+  let hash = 0;
+  for (let i = 0; i < (email || '').length; i++) {
+    hash = email.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return bgs[Math.abs(hash) % bgs.length];
+}
+
+/* Board Loading & Switching */
 async function loadBoards() {
   const boards = await j('/api/boards');
   const sel = document.getElementById('boardSelect');
@@ -30,12 +104,13 @@ async function loadBoards() {
   if (!boards || boards.length === 0) {
     sel.innerHTML = '<option value="">No boards found</option>';
     document.getElementById('currentBoardTitle').innerText = 'No boards yet';
-    document.getElementById('boardSubtext').innerText = 'Click "+ New Board" above to create your first board.';
+    document.getElementById('boardSubtext').innerText = 'Create your first board';
     return;
   }
   boards.forEach(b => {
     const opt = document.createElement('option');
     opt.value = b.id;
+    opt.className = 'text-slate-800';
     opt.textContent = `${b.title} (${b.role})`;
     sel.appendChild(opt);
   });
@@ -52,8 +127,18 @@ async function switchBoard(boardId) {
   document.getElementById('boardSelect').value = boardId;
   document.getElementById('currentBoardTitle').innerText = currentBoard.title;
   document.getElementById('userRoleBadge').innerText = currentBoard.role;
-  document.getElementById('boardSubtext').innerText = `Owner: ${currentBoard.owner_email}`;
+  document.getElementById('boardSubtext').innerText = `Owner: ${currentBoard.owner_email.split('@')[0]}`;
   document.getElementById('membersBtnLabel').innerText = `Members (${(currentBoard.members || []).length})`;
+
+  // Render members avatar pile
+  const pile = document.getElementById('boardMembersPile');
+  if (pile) {
+    pile.innerHTML = (currentBoard.members || []).slice(0, 4).map(m => `
+      <div class="w-6 h-6 rounded-full bg-gradient-to-tr ${getAvatarBg(m.email)} text-white text-[9px] font-bold flex items-center justify-center border-2 border-white/50 shadow-sm" title="${escapeHtml(m.email)} (${m.role})">
+        ${getInitials(m.email)}
+      </div>
+    `).join('');
+  }
 
   const isViewer = currentBoard.role === 'viewer';
   document.getElementById('roleWarningBanner').classList.toggle('hidden', !isViewer);
@@ -65,51 +150,79 @@ async function switchBoard(boardId) {
   renderBoard();
 }
 
+/* Board & Card Rendering */
 function renderBoard(cards = allCards) {
   ['To do', 'Doing', 'Done'].forEach(list => {
     const listCards = cards.filter(c => c.list_name === list);
     const container = document.getElementById(`cards-${list.replace(' ', '-')}`);
     const countBadge = document.getElementById(`count-${list.replace(' ', '-')}`);
-    countBadge.innerText = listCards.length;
+    if (countBadge) countBadge.innerText = listCards.length;
+    if (!container) return;
     container.innerHTML = '';
 
     listCards.forEach(c => {
       const cardEl = document.createElement('div');
-      cardEl.className = 'bg-white rounded-xl p-3 shadow-sm border border-slate-200/80 hover:shadow-md transition cursor-pointer select-none';
+      cardEl.className = 'bg-white rounded-xl p-3 shadow-sm hover:shadow-md border border-slate-200/90 hover:border-slate-300 transition cursor-pointer select-none mb-2 relative group';
       cardEl.draggable = currentBoard.role !== 'viewer';
       cardEl.ondragstart = (e) => handleDragStart(e, c.id);
       cardEl.onclick = () => openCardDetails(c.id);
 
-      // Labels
+      // Color-coded Trello label pills
       let labelsHtml = '';
       if (c.labels && c.labels.length) {
-        labelsHtml = '<div class="flex flex-wrap gap-1 mb-1.5">' +
-          c.labels.map(l => `<span class="bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">${escapeHtml(l)}</span>`).join('') +
+        labelsHtml = '<div class="flex flex-wrap gap-1 mb-2">' +
+          c.labels.map(l => `<span class="${getLabelColorClass(l)} text-[10px] font-semibold px-2 py-0.5 rounded shadow-xs tracking-wide">${escapeHtml(l)}</span>`).join('') +
           '</div>';
       }
 
-      // Indicators: overdue, blockers, assignee
-      let metaHtml = '<div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500">';
-      let flags = [];
-      if (c.is_overdue) {
-        flags.push('<span class="text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded">⚠️ Overdue</span>');
+      // Title
+      const titleHtml = `<div class="font-medium text-xs text-slate-900 leading-snug mb-2">${escapeHtml(c.title)}</div>`;
+
+      // Badges Row (Trello card icons)
+      let badges = [];
+
+      // Due date badge
+      if (c.list_name === 'Done') {
+        if (c.due_date) {
+          badges.push(`<span class="bg-emerald-100 text-emerald-800 font-semibold px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1">✓ ${c.due_date}</span>`);
+        }
+      } else if (c.is_overdue) {
+        badges.push(`<span class="bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 animate-pulse">⚠️ ${c.due_date || 'Overdue'}</span>`);
       } else if (c.due_date) {
-        flags.push(`<span>📅 ${c.due_date}</span>`);
+        badges.push(`<span class="text-slate-600 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1">🕒 ${c.due_date}</span>`);
       }
+
+      // Description presence icon
+      if (c.description && c.description.trim()) {
+        badges.push('<span class="text-slate-500 text-[11px]" title="This card has a description.">≡</span>');
+      }
+
+      // Blocked badge
       if (c.blocked_by && c.blocked_by.length) {
-        flags.push('<span class="text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded">🚫 Blocked</span>');
+        badges.push('<span class="bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded text-[10px]">🚫 Blocked</span>');
       }
-      metaHtml += `<div>${flags.join(' ')}</div>`;
 
+      // Assignee avatar
+      let assigneeHtml = '';
       if (c.assignee) {
-        const shortName = c.assignee.split('@')[0];
-        metaHtml += `<span class="bg-slate-100 text-slate-700 font-medium px-1.5 py-0.5 rounded text-[10px]" title="${c.assignee}">👤 ${escapeHtml(shortName)}</span>`;
-      } else {
-        metaHtml += '<span class="text-slate-300 text-[10px]">&mdash;</span>';
+        assigneeHtml = `
+          <div class="w-5 h-5 rounded-full bg-gradient-to-tr ${getAvatarBg(c.assignee)} text-white text-[9px] font-bold flex items-center justify-center border border-white shadow-xs ml-auto" title="${escapeHtml(c.assignee)}">
+            ${getInitials(c.assignee)}
+          </div>
+        `;
       }
-      metaHtml += '</div>';
 
-      cardEl.innerHTML = labelsHtml + `<div class="font-semibold text-xs text-slate-800 leading-snug">${escapeHtml(c.title)}</div>` + metaHtml;
+      let footerHtml = '';
+      if (badges.length || assigneeHtml) {
+        footerHtml = `
+          <div class="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-100 text-slate-500">
+            <div class="flex items-center gap-1.5 flex-wrap">${badges.join('')}</div>
+            ${assigneeHtml}
+          </div>
+        `;
+      }
+
+      cardEl.innerHTML = labelsHtml + titleHtml + footerHtml;
       container.appendChild(cardEl);
     });
   });
@@ -130,7 +243,7 @@ function applyFilter() {
   renderBoard(filtered);
 }
 
-/* Drag and drop */
+/* Drag and Drop */
 function handleDragStart(e, cardId) {
   draggedCardId = cardId;
   e.dataTransfer.setData('text/plain', cardId);
@@ -159,18 +272,47 @@ async function handleDrop(e, targetList) {
   }
 }
 
-/* Quick add card */
-async function quickAddCard(e, listName) {
+/* Trello-Style Inline Composer */
+function openComposer(listName) {
+  const key = listName.replace(' ', '-');
+  const btn = document.getElementById(`addBtn-${key}`);
+  const comp = document.getElementById(`composer-${key}`);
+  const input = document.getElementById(`composerInput-${key}`);
+  if (btn && comp) {
+    btn.classList.add('hidden');
+    comp.classList.remove('hidden');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+}
+
+function closeComposer(listName) {
+  const key = listName.replace(' ', '-');
+  const btn = document.getElementById(`addBtn-${key}`);
+  const comp = document.getElementById(`composer-${key}`);
+  if (btn && comp) {
+    comp.classList.add('hidden');
+    btn.classList.remove('hidden');
+  }
+}
+
+async function submitComposer(e, listName) {
   e.preventDefault();
-  const input = e.target.cardTitle;
-  const title = input.value.trim();
+  const key = listName.replace(' ', '-');
+  const input = document.getElementById(`composerInput-${key}`);
+  const title = (input ? input.value : '').trim();
   if (!title) return;
   try {
     await j(`/api/boards/${currentBoard.id}/cards`, {
       method: 'POST',
       body: JSON.stringify({ title, list_name: listName })
     });
-    input.value = '';
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
     await switchBoard(currentBoard.id);
   } catch (err) {
     alert(err.message);
@@ -193,7 +335,45 @@ async function openCardDetails(cardId) {
 
   document.getElementById('modalOverdueBadge').classList.toggle('hidden', !card.is_overdue);
 
-  // Populate assignees
+  // Update member chip on card details
+  const memberChip = document.getElementById('modalMemberChip');
+  if (memberChip) {
+    if (card.assignee) {
+      memberChip.innerHTML = `
+        <div class="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-md text-xs font-semibold text-slate-800">
+          <div class="w-5 h-5 rounded-full bg-gradient-to-tr ${getAvatarBg(card.assignee)} text-white text-[9px] font-bold flex items-center justify-center">
+            ${getInitials(card.assignee)}
+          </div>
+          <span>${escapeHtml(card.assignee)}</span>
+        </div>
+      `;
+    } else {
+      memberChip.innerHTML = '<span class="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-md font-medium">Unassigned</span>';
+    }
+  }
+
+  // Update label chips on card details
+  const labelChips = document.getElementById('modalLabelsChips');
+  if (labelChips) {
+    if (card.labels && card.labels.length) {
+      labelChips.innerHTML = card.labels.map(l =>
+        `<span class="${getLabelColorClass(l)} text-[10px] font-semibold px-2 py-0.5 rounded shadow-xs">${escapeHtml(l)}</span>`
+      ).join('');
+    } else {
+      labelChips.innerHTML = '<span class="text-xs text-slate-400 italic">No labels</span>';
+    }
+  }
+
+  // Update due date chip
+  const dateChip = document.getElementById('modalDueDateChip');
+  if (dateChip) {
+    dateChip.innerText = card.due_date ? `${card.due_date}${card.is_overdue ? ' (Overdue)' : ''}` : 'No date set';
+    dateChip.className = card.is_overdue
+      ? 'text-xs font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded-md'
+      : 'text-xs text-slate-700 font-semibold bg-slate-100 px-2 py-1 rounded-md';
+  }
+
+  // Populate assignees dropdown
   const assSelect = document.getElementById('modalAssignee');
   assSelect.innerHTML = '<option value="">Unassigned</option>';
   (currentBoard.members || []).forEach(m => {
@@ -204,7 +384,7 @@ async function openCardDetails(cardId) {
     assSelect.appendChild(opt);
   });
 
-  // Populate blockers
+  // Populate blockers dropdown
   const blockSelect = document.getElementById('modalBlockersSelect');
   blockSelect.innerHTML = '';
   allCards.filter(c => c.id !== card.id).forEach(c => {
@@ -215,19 +395,23 @@ async function openCardDetails(cardId) {
     blockSelect.appendChild(opt);
   });
 
-  // Fetch blockers info
+  // Fetch blockers dependency status
   try {
     const blockingInfo = await j(`/api/cards/${card.id}/blocking`);
     document.getElementById('modalBlockedBadge').classList.toggle('hidden', !blockingInfo.is_blocked);
     const statusBox = document.getElementById('modalBlockersStatus');
     if (blockingInfo.blockers && blockingInfo.blockers.length) {
       statusBox.innerHTML = blockingInfo.blockers.map(b =>
-        `<div class="text-[11px] ${b.is_done ? 'text-emerald-600' : 'text-amber-600 font-semibold'}">
-          ${b.is_done ? '✓' : '⚠️'} [${b.list_name}] ${escapeHtml(b.title)} (${b.assignee || 'unassigned'})
+        `<div class="text-[11px] p-1.5 rounded flex items-center justify-between ${b.is_done ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800 font-medium'}">
+          <div class="flex items-center gap-1.5">
+            <span>${b.is_done ? '✓' : '⚠️'}</span>
+            <span>[${b.list_name}] ${escapeHtml(b.title)}</span>
+          </div>
+          <span class="text-[10px] text-slate-500">${escapeHtml(b.assignee || 'unassigned')}</span>
         </div>`
       ).join('');
     } else {
-      statusBox.innerHTML = '<div class="text-[11px] text-slate-400">No dependencies linked.</div>';
+      statusBox.innerHTML = '<div class="text-[11px] text-slate-400 italic">No dependencies linked.</div>';
     }
   } catch (err) {}
 
@@ -240,10 +424,13 @@ async function openCardDetails(cardId) {
     } else {
       timeline.innerHTML = history.map(h => `
         <div class="flex items-start gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-          <span class="text-slate-400 font-mono text-[10px] whitespace-nowrap">${h.event_at ? h.event_at.replace('T', ' ').substring(0, 16) : ''}</span>
-          <div>
-            <span class="font-bold text-slate-700">${escapeHtml(h.actor)}</span>:
+          <div class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 font-bold text-[9px] flex items-center justify-center shrink-0 mt-0.5">
+            ${getInitials(h.actor)}
+          </div>
+          <div class="flex-1">
+            <span class="font-bold text-slate-800">${escapeHtml(h.actor)}</span>
             <span class="text-slate-600">${escapeHtml(h.action)}</span>
+            <div class="text-[10px] text-slate-400 font-mono mt-0.5">${h.event_at ? h.event_at.replace('T', ' ').substring(0, 16) : ''}</div>
           </div>
         </div>
       `).join('');
@@ -289,18 +476,18 @@ async function deleteCurrentCard() {
   }
 }
 
-/* AI Tools */
+/* AI Assistant Tools (Dodil Models kimi-k2.6) */
 async function aiGenerateChecklist() {
   if (!currentCardId) return;
   const box = document.getElementById('aiOutputBox');
   box.classList.remove('hidden');
-  box.innerText = 'Calling Dodil Models (kimi-k2.6) for checklist steps...';
+  box.innerText = 'Calling Dodil Models (kimi-k2.6) to generate actionable steps...';
   try {
     const res = await j(`/api/cards/${currentCardId}/checklist`, { method: 'POST' });
     const steps = res.suggested_checklist || [];
-    box.innerText = "Suggested Checklist:\n" + steps.map(s => `[ ] ${s}`).join('\n') + "\n\n(Click 'Append to Description' to save)";
+    box.innerText = "Suggested Checklist Steps:\n" + steps.map(s => `[ ] ${s}`).join('\n') + "\n\n(Click 'Append to Description' to save)";
     const appendBtn = document.createElement('button');
-    appendBtn.className = "mt-2 bg-indigo-600 text-white text-xs px-2.5 py-1 rounded font-semibold block";
+    appendBtn.className = "mt-2 bg-[#0c66e4] hover:bg-[#0055cc] text-white text-xs px-3 py-1.5 rounded-md font-bold block transition shadow-sm";
     appendBtn.textContent = "Append to Description";
     appendBtn.onclick = () => {
       const desc = document.getElementById('modalDesc');
@@ -334,7 +521,7 @@ async function aiFindSimilarCards() {
 async function generateBoardSummary() {
   if (!currentBoard) return;
   openModal('summaryModal');
-  document.getElementById('summaryContent').innerHTML = '<div class="text-violet-600 font-medium animate-pulse">Generating daily standup summary via Dodil Models (kimi-k2.6)...</div>';
+  document.getElementById('summaryContent').innerHTML = '<div class="text-indigo-600 font-medium animate-pulse">Generating daily standup summary via Dodil Models (kimi-k2.6)...</div>';
   try {
     const res = await j(`/api/boards/${currentBoard.id}/summary`);
     document.getElementById('summaryContent').innerHTML = renderMarkdown(res.summary);
@@ -364,9 +551,12 @@ function openMembersModal() {
   const list = document.getElementById('membersList');
   list.innerHTML = (currentBoard.members || []).map(m => `
     <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
-      <div>
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-full bg-gradient-to-tr ${getAvatarBg(m.email)} text-white text-[9px] font-bold flex items-center justify-center">
+          ${getInitials(m.email)}
+        </div>
         <span class="font-bold text-slate-800">${escapeHtml(m.email)}</span>
-        <span class="ml-2 font-semibold uppercase text-[10px] px-1.5 py-0.5 rounded ${m.role === 'owner' ? 'bg-indigo-100 text-indigo-700' : m.role === 'member' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}">${m.role}</span>
+        <span class="font-semibold uppercase text-[10px] px-1.5 py-0.5 rounded ${m.role === 'owner' ? 'bg-indigo-100 text-indigo-700' : m.role === 'member' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}">${m.role}</span>
       </div>
       ${currentBoard.role === 'owner' && m.role !== 'owner' ? `
         <button onclick="removeMember('${m.email}')" class="text-rose-600 hover:text-rose-800 font-bold">Remove</button>
@@ -420,10 +610,13 @@ async function openBoardHistoryModal() {
     }
     box.innerHTML = acts.map(a => `
       <div class="flex items-start gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-        <span class="text-slate-400 font-mono text-[10px] whitespace-nowrap">${a.event_at ? a.event_at.replace('T', ' ').substring(0, 16) : ''}</span>
-        <div>
-          <span class="font-bold text-slate-700">${escapeHtml(a.actor)}</span>:
+        <div class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 font-bold text-[9px] flex items-center justify-center shrink-0 mt-0.5">
+          ${getInitials(a.actor)}
+        </div>
+        <div class="flex-1">
+          <span class="font-bold text-slate-800">${escapeHtml(a.actor)}</span>:
           <span class="text-slate-600">${escapeHtml(a.action)}</span>
+          <div class="text-[10px] text-slate-400 font-mono mt-0.5">${a.event_at ? a.event_at.replace('T', ' ').substring(0, 16) : ''}</div>
         </div>
       </div>
     `).join('');
@@ -450,7 +643,7 @@ async function loadMyPlate(thisWeek) {
     box.innerHTML = cards.map(c => `
       <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition" onclick="closeModal('myPlateModal'); switchBoard('${c.board_id}').then(() => openCardDetails('${c.id}'))">
         <div>
-          <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">${escapeHtml(c.board_title || 'Board')} &bull; ${c.list_name}</span>
+          <span class="text-[10px] font-bold text-[#0c66e4] uppercase tracking-wider block">${escapeHtml(c.board_title || 'Board')} &bull; ${c.list_name}</span>
           <span class="font-semibold text-slate-800">${escapeHtml(c.title)}</span>
         </div>
         <div class="text-right">
@@ -487,8 +680,8 @@ function switchDescTab(tab) {
   const writeBtn = document.getElementById('descTabWrite');
   const prevBtn = document.getElementById('descTabPreview');
   if (writeBtn && prevBtn) {
-    writeBtn.className = isWrite ? 'px-2 py-0.5 rounded font-bold bg-slate-200 text-slate-700' : 'px-2 py-0.5 rounded text-slate-500 hover:text-slate-700';
-    prevBtn.className = !isWrite ? 'px-2 py-0.5 rounded font-bold bg-slate-200 text-slate-700' : 'px-2 py-0.5 rounded text-slate-500 hover:text-slate-700';
+    writeBtn.className = isWrite ? 'px-2.5 py-0.5 rounded font-bold bg-slate-200 text-slate-800 transition' : 'px-2.5 py-0.5 rounded text-slate-500 hover:text-slate-800 transition';
+    prevBtn.className = !isWrite ? 'px-2.5 py-0.5 rounded font-bold bg-slate-200 text-slate-800 transition' : 'px-2.5 py-0.5 rounded text-slate-500 hover:text-slate-800 transition';
   }
   const textarea = document.getElementById('modalDesc');
   const preview = document.getElementById('modalDescPreview');

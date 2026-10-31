@@ -8,9 +8,19 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    .card-drag-over { border: 2px dashed #6366f1 !important; background: #eef2ff !important; }
-    .col-drag-over { background: #e0e7ff !important; }
-    .grabbing { cursor: grabbing !important; }
+    /* Trello-like Canvas Themes */
+    .theme-blue { background: linear-gradient(135deg, #0079bf 0%, #005a8e 100%); }
+    .theme-orange { background: linear-gradient(135deg, #d29034 0%, #b04632 100%); }
+    .theme-green { background: linear-gradient(135deg, #519839 0%, #3f7b2c 100%); }
+    .theme-indigo { background: linear-gradient(135deg, #4b3869 0%, #2b1055 100%); }
+    .theme-charcoal { background: linear-gradient(135deg, #263238 0%, #151b1e 100%); }
+
+    /* Drag and Drop visual feedback */
+    .card-drag-over { border: 2px dashed #0c66e4 !important; background: #e9f2ff !important; }
+    .col-drag-over { background: #dce3eb !important; }
+    .grabbing { cursor: grabbing !important; opacity: 0.65; transform: rotate(1deg); }
+
+    /* Markdown preview body styles */
     .markdown-body h1 { font-size: 1.15rem; font-weight: 800; margin-top: 0.75rem; margin-bottom: 0.35rem; color: #1e1b4b; }
     .markdown-body h2 { font-size: 1.05rem; font-weight: 700; margin-top: 0.65rem; margin-bottom: 0.3rem; color: #312e81; }
     .markdown-body h3 { font-size: 0.95rem; font-weight: 600; margin-top: 0.5rem; margin-bottom: 0.25rem; color: #4338ca; }
@@ -22,294 +32,434 @@
     .markdown-body blockquote { border-left: 3px solid #8b5cf6; padding-left: 0.75rem; color: #475569; font-style: italic; margin: 0.5rem 0; }
     .markdown-body code { background: #ede9fe; color: #5b21b6; padding: 0.1rem 0.35rem; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
     .markdown-body pre { background: #0f172a; color: #f8fafc; padding: 0.75rem; border-radius: 8px; overflow-x: auto; margin: 0.5rem 0; }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.05); border-radius: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); border-radius: 6px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.3); }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+<body id="boardBody" class="theme-blue text-slate-800 font-sans antialiased min-h-screen flex flex-col transition-colors duration-300">
 
-  <!-- Header -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+  <!-- Top App Navigation Bar -->
+  <header class="backdrop-blur-md bg-black/25 text-white border-b border-white/10 sticky top-0 z-30 shadow-sm">
+    <div class="w-full px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+      
+      <!-- Brand & Board Switcher -->
       <div class="flex items-center gap-3">
-        <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-indigo-100">
+        <div class="h-8 w-8 rounded-lg bg-white/20 hover:bg-white/30 backdrop-blur-sm flex items-center justify-center text-white font-black text-base shadow-sm transition">
           ⚡
         </div>
-        <div>
-          <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-indigo-700 to-violet-600 bg-clip-text text-transparent">PulseBoard</span>
-          <span class="hidden sm:inline-block text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full ml-1 font-medium">Team Task Board</span>
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-lg tracking-tight text-white drop-shadow-sm">PulseBoard</span>
+        </div>
+
+        <div class="h-4 w-px bg-white/20 mx-1 hidden sm:block"></div>
+
+        <!-- Board Selector Dropdown -->
+        <div class="flex items-center gap-1.5">
+          <select id="boardSelect" onchange="switchBoard(this.value)" class="bg-white/15 hover:bg-white/25 text-white border border-white/20 rounded-md px-3 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-white/50 transition cursor-pointer max-w-xs">
+            <option value="" class="text-slate-800">Loading boards...</option>
+          </select>
+          <button onclick="openModal('newBoardModal')" title="Create Board" class="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-2.5 py-1 rounded-md border border-white/20 flex items-center gap-1 transition shadow-sm">
+            <span>+</span> <span class="hidden md:inline">New</span>
+          </button>
         </div>
       </div>
 
-      <!-- Board selector & actions -->
-      <div class="flex items-center gap-2">
-        <select id="boardSelect" onchange="switchBoard(this.value)" class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-xs">
-          <option value="">Loading boards...</option>
-        </select>
-        <button onclick="openModal('newBoardModal')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1 transition shadow-sm">
-          <span>+</span> <span class="hidden sm:inline">New Board</span>
-        </button>
-      </div>
-
-      <!-- Right menu: User identity & logout -->
+      <!-- Right Menu: Background Switcher & User Profile -->
       <div class="flex items-center gap-3">
-        <div class="text-right hidden md:block">
-          <div id="userEmail" class="text-xs font-semibold text-slate-700">user@example.com</div>
-          <div id="userRoleBadge" class="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Member</div>
+        <!-- Palette theme picker -->
+        <div class="hidden sm:flex items-center gap-1.5 bg-black/20 px-2 py-1 rounded-full border border-white/10" title="Board Theme">
+          <button onclick="setTheme('blue')" title="Classic Blue" class="w-3.5 h-3.5 rounded-full bg-[#0079bf] border border-white/80 hover:scale-110 transition"></button>
+          <button onclick="setTheme('orange')" title="Sunset Orange" class="w-3.5 h-3.5 rounded-full bg-[#d29034] border border-white/80 hover:scale-110 transition"></button>
+          <button onclick="setTheme('green')" title="Lush Emerald" class="w-3.5 h-3.5 rounded-full bg-[#519839] border border-white/80 hover:scale-110 transition"></button>
+          <button onclick="setTheme('indigo')" title="Twilight Indigo" class="w-3.5 h-3.5 rounded-full bg-[#4b3869] border border-white/80 hover:scale-110 transition"></button>
+          <button onclick="setTheme('charcoal')" title="Dark Minimal" class="w-3.5 h-3.5 rounded-full bg-[#263238] border border-white/80 hover:scale-110 transition"></button>
         </div>
-        <a href="/.dodil/auth/logout" class="text-xs text-slate-700 hover:text-red-600 font-medium px-2 py-1 rounded hover:bg-slate-100 transition">
+
+        <!-- User Identity Badge -->
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 to-amber-600 text-slate-900 font-extrabold text-xs flex items-center justify-center shadow-sm" id="userAvatarBadge">
+            U
+          </div>
+          <div class="text-right hidden md:block">
+            <div id="userEmail" class="text-xs font-semibold text-white/90">user@example.com</div>
+            <div id="userRoleBadge" class="text-[10px] text-amber-200 font-bold uppercase tracking-wider">Member</div>
+          </div>
+        </div>
+
+        <a href="/.dodil/auth/logout" class="text-xs text-white/80 hover:text-white font-medium px-2 py-1 rounded hover:bg-white/15 transition">
           Sign out
         </a>
       </div>
     </div>
 
-    <!-- Sub-bar: Board controls & filters -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-sm">
-      <div class="flex items-center gap-2 flex-wrap">
-        <button onclick="openMembersModal()" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-          👥 <span id="membersBtnLabel">Members</span>
+    <!-- Board Sub-Bar (Board title, members, actions, filters) -->
+    <div class="w-full px-4 sm:px-6 py-2 bg-black/15 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-sm">
+      
+      <!-- Left side: Board Title, Star, Team Badge & Members -->
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <h1 id="currentBoardTitle" class="text-base sm:text-lg font-black text-white tracking-tight drop-shadow-sm">Board</h1>
+        <button class="text-white/70 hover:text-amber-300 transition text-sm" title="Star Board">⭐</button>
+
+        <span class="text-xs font-medium text-white/80 bg-white/15 px-2 py-0.5 rounded-md border border-white/10 flex items-center gap-1">
+          👥 <span id="boardSubtext">Workspace</span>
+        </span>
+
+        <div class="h-4 w-px bg-white/20 mx-1 hidden sm:block"></div>
+
+        <!-- Member Avatars Pile -->
+        <div id="boardMembersPile" class="flex items-center -space-x-1.5 overflow-hidden"></div>
+
+        <!-- Members / Invite Button -->
+        <button onclick="openMembersModal()" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-white/20 hover:bg-white/30 text-white border border-white/20 transition shadow-sm">
+          <span>👥</span> <span id="membersBtnLabel">Members</span>
         </button>
-        <button onclick="openBoardHistoryModal()" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-          📜 Activity Log
+
+        <!-- Activity Log -->
+        <button onclick="openBoardHistoryModal()" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/15 transition shadow-sm">
+          <span>📜</span> <span class="hidden md:inline">Activity</span>
         </button>
-        <button onclick="generateBoardSummary()" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition">
-          ✨ Daily AI Summary
+
+        <!-- AI Standup Summary -->
+        <button onclick="generateBoardSummary()" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-900 transition shadow-sm">
+          <span>✨</span> <span>AI Standup</span>
         </button>
-        <button onclick="showMyCards()" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition">
-          📌 My Plate
+
+        <!-- My Tasks -->
+        <button onclick="showMyCards()" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/15 transition shadow-sm">
+          <span>📌</span> <span>My Plate</span>
         </button>
       </div>
 
-      <!-- Filter search & overdue toggle -->
+      <!-- Right side: Filters & Overdue Toggle -->
       <div class="flex items-center gap-2">
-        <input id="searchInput" type="text" placeholder="Filter cards..." oninput="applyFilter()" class="bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36 sm:w-48">
-        <label class="flex items-center gap-1 text-xs text-slate-600 cursor-pointer select-none">
-          <input type="checkbox" id="overdueOnlyToggle" onchange="applyFilter()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+        <div class="relative">
+          <input id="searchInput" type="text" placeholder="Filter cards..." oninput="applyFilter()" class="bg-white/15 hover:bg-white/25 focus:bg-white focus:text-slate-800 text-white placeholder-white/70 border border-white/20 rounded-md px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-white/50 w-36 sm:w-48 transition">
+        </div>
+        <label class="flex items-center gap-1.5 text-xs text-white/90 cursor-pointer select-none bg-black/20 px-2 py-1 rounded-md border border-white/10">
+          <input type="checkbox" id="overdueOnlyToggle" onchange="applyFilter()" class="rounded border-white/30 text-rose-500 focus:ring-0">
           <span class="font-medium">Overdue only</span>
         </label>
       </div>
     </div>
   </header>
 
-  <!-- Main Board Canvas -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 overflow-x-auto">
-    <div id="boardTitleContainer" class="mb-4 flex items-center justify-between">
-      <div>
-        <h1 id="currentBoardTitle" class="text-2xl font-black text-slate-800 tracking-tight">Board</h1>
-        <p id="boardSubtext" class="text-xs text-slate-600">Select or create a board to get started</p>
-      </div>
-      <div id="roleWarningBanner" class="hidden text-xs bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg border border-amber-200 font-medium">
-        👀 You are viewing this board as a <b>Viewer</b> (read-only mode).
-      </div>
-    </div>
+  <!-- Viewer Read-Only Notification -->
+  <div id="roleWarningBanner" class="hidden bg-amber-500/90 text-white px-4 py-1.5 text-center text-xs font-bold shadow-sm">
+    👀 Read-Only Mode: You are viewing this board as a Viewer.
+  </div>
 
+  <!-- Main Board Canvas -->
+  <main class="flex-1 w-full px-4 sm:px-6 py-6 overflow-x-auto">
     <!-- Columns Container -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 items-start max-w-7xl mx-auto">
 
       <!-- Column: To do -->
-      <div class="bg-slate-200/70 rounded-2xl p-4 flex flex-col max-h-[80vh] border border-slate-300/60 shadow-sm transition-colors duration-150"
+      <div class="bg-[#f1f2f4] rounded-2xl p-3 flex flex-col max-h-[82vh] border border-black/5 shadow-md transition-colors duration-150"
            id="col-To-do" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'To do')">
-        <div class="flex items-center justify-between mb-3 px-1">
+        <div class="flex items-center justify-between mb-2.5 px-1 pt-1">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-            <h2 class="font-bold text-sm text-slate-700 tracking-wide uppercase">To do</h2>
+            <h2 class="font-bold text-sm text-slate-800 tracking-tight">To do</h2>
           </div>
-          <span id="count-To-do" class="bg-slate-300 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-full">0</span>
+          <div class="flex items-center gap-1">
+            <span id="count-To-do" class="bg-slate-200/90 text-slate-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            <button class="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-200/60 text-xs font-bold">•••</button>
+          </div>
         </div>
-        <div id="cards-To-do" class="flex-1 overflow-y-auto space-y-3 min-h-[50px] p-0.5"></div>
-        <div class="mt-3 pt-2 border-t border-slate-300/50">
-          <form onsubmit="quickAddCard(event, 'To do')" class="can-edit">
-            <div class="flex gap-1.5">
-              <input name="cardTitle" placeholder="+ Add a card..." required class="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <button class="bg-slate-700 hover:bg-slate-800 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition">Add</button>
-            </div>
-          </form>
+        
+        <!-- Cards List -->
+        <div id="cards-To-do" class="flex-1 overflow-y-auto space-y-2.5 min-h-[50px] p-0.5"></div>
+        
+        <!-- Trello-style Inline Card Composer -->
+        <div class="mt-2 pt-1">
+          <button id="addBtn-To-do" onclick="openComposer('To do')" class="can-edit w-full text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 rounded-lg py-1.5 px-2.5 text-xs font-semibold flex items-center gap-1.5 transition text-left">
+            <span>+</span> <span>Add a card</span>
+          </button>
+          <div id="composer-To-do" class="hidden">
+            <form onsubmit="submitComposer(event, 'To do')">
+              <textarea id="composerInput-To-do" rows="2" placeholder="Enter a title for this card..." required class="w-full bg-white rounded-lg p-2 text-xs text-slate-800 shadow-sm border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0c66e4] resize-none"></textarea>
+              <div class="flex items-center gap-1.5 mt-1.5">
+                <button type="submit" class="bg-[#0c66e4] hover:bg-[#0055cc] text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm transition">Add card</button>
+                <button type="button" onclick="closeComposer('To do')" class="text-slate-500 hover:text-slate-800 text-lg px-2 py-0.5 transition">✕</button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
       <!-- Column: Doing -->
-      <div class="bg-slate-200/70 rounded-2xl p-4 flex flex-col max-h-[80vh] border border-slate-300/60 shadow-sm transition-colors duration-150"
+      <div class="bg-[#f1f2f4] rounded-2xl p-3 flex flex-col max-h-[82vh] border border-black/5 shadow-md transition-colors duration-150"
            id="col-Doing" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'Doing')">
-        <div class="flex items-center justify-between mb-3 px-1">
+        <div class="flex items-center justify-between mb-2.5 px-1 pt-1">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-            <h2 class="font-bold text-sm text-slate-700 tracking-wide uppercase">Doing</h2>
+            <h2 class="font-bold text-sm text-slate-800 tracking-tight">Doing</h2>
           </div>
-          <span id="count-Doing" class="bg-amber-200 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full">0</span>
+          <div class="flex items-center gap-1">
+            <span id="count-Doing" class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            <button class="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-200/60 text-xs font-bold">•••</button>
+          </div>
         </div>
-        <div id="cards-Doing" class="flex-1 overflow-y-auto space-y-3 min-h-[50px] p-0.5"></div>
-        <div class="mt-3 pt-2 border-t border-slate-300/50">
-          <form onsubmit="quickAddCard(event, 'Doing')" class="can-edit">
-            <div class="flex gap-1.5">
-              <input name="cardTitle" placeholder="+ Add a card..." required class="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <button class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition">Add</button>
-            </div>
-          </form>
+
+        <!-- Cards List -->
+        <div id="cards-Doing" class="flex-1 overflow-y-auto space-y-2.5 min-h-[50px] p-0.5"></div>
+
+        <!-- Trello-style Inline Card Composer -->
+        <div class="mt-2 pt-1">
+          <button id="addBtn-Doing" onclick="openComposer('Doing')" class="can-edit w-full text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 rounded-lg py-1.5 px-2.5 text-xs font-semibold flex items-center gap-1.5 transition text-left">
+            <span>+</span> <span>Add a card</span>
+          </button>
+          <div id="composer-Doing" class="hidden">
+            <form onsubmit="submitComposer(event, 'Doing')">
+              <textarea id="composerInput-Doing" rows="2" placeholder="Enter a title for this card..." required class="w-full bg-white rounded-lg p-2 text-xs text-slate-800 shadow-sm border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0c66e4] resize-none"></textarea>
+              <div class="flex items-center gap-1.5 mt-1.5">
+                <button type="submit" class="bg-[#0c66e4] hover:bg-[#0055cc] text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm transition">Add card</button>
+                <button type="button" onclick="closeComposer('Doing')" class="text-slate-500 hover:text-slate-800 text-lg px-2 py-0.5 transition">✕</button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
       <!-- Column: Done -->
-      <div class="bg-slate-200/70 rounded-2xl p-4 flex flex-col max-h-[80vh] border border-slate-300/60 shadow-sm transition-colors duration-150"
+      <div class="bg-[#f1f2f4] rounded-2xl p-3 flex flex-col max-h-[82vh] border border-black/5 shadow-md transition-colors duration-150"
            id="col-Done" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'Done')">
-        <div class="flex items-center justify-between mb-3 px-1">
+        <div class="flex items-center justify-between mb-2.5 px-1 pt-1">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            <h2 class="font-bold text-sm text-slate-700 tracking-wide uppercase">Done</h2>
+            <h2 class="font-bold text-sm text-slate-800 tracking-tight">Done</h2>
           </div>
-          <span id="count-Done" class="bg-emerald-200 text-emerald-800 text-xs font-semibold px-2 py-0.5 rounded-full">0</span>
+          <div class="flex items-center gap-1">
+            <span id="count-Done" class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            <button class="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-200/60 text-xs font-bold">•••</button>
+          </div>
         </div>
-        <div id="cards-Done" class="flex-1 overflow-y-auto space-y-3 min-h-[50px] p-0.5"></div>
-        <div class="mt-3 pt-2 border-t border-slate-300/50">
-          <form onsubmit="quickAddCard(event, 'Done')" class="can-edit">
-            <div class="flex gap-1.5">
-              <input name="cardTitle" placeholder="+ Add a card..." required class="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <button class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition">Add</button>
-            </div>
-          </form>
+
+        <!-- Cards List -->
+        <div id="cards-Done" class="flex-1 overflow-y-auto space-y-2.5 min-h-[50px] p-0.5"></div>
+
+        <!-- Trello-style Inline Card Composer -->
+        <div class="mt-2 pt-1">
+          <button id="addBtn-Done" onclick="openComposer('Done')" class="can-edit w-full text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 rounded-lg py-1.5 px-2.5 text-xs font-semibold flex items-center gap-1.5 transition text-left">
+            <span>+</span> <span>Add a card</span>
+          </button>
+          <div id="composer-Done" class="hidden">
+            <form onsubmit="submitComposer(event, 'Done')">
+              <textarea id="composerInput-Done" rows="2" placeholder="Enter a title for this card..." required class="w-full bg-white rounded-lg p-2 text-xs text-slate-800 shadow-sm border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0c66e4] resize-none"></textarea>
+              <div class="flex items-center gap-1.5 mt-1.5">
+                <button type="submit" class="bg-[#0c66e4] hover:bg-[#0055cc] text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm transition">Add card</button>
+                <button type="button" onclick="closeComposer('Done')" class="text-slate-500 hover:text-slate-800 text-lg px-2 py-0.5 transition">✕</button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
     </div>
   </main>
 
-  <!-- Card Detail Modal -->
-  <div id="cardModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 relative border border-slate-200 max-h-[90vh] flex flex-col">
-      <button onclick="closeModal('cardModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+  <!-- Trello-Style Card Detail Modal (Classic 2-Column Layout) -->
+  <div id="cardModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-[#f8fafc] rounded-2xl shadow-2xl max-w-3xl w-full p-6 relative border border-slate-200 max-h-[92vh] flex flex-col">
+      <button onclick="closeModal('cardModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-xl font-bold p-1 rounded-full hover:bg-slate-200 transition">✕</button>
 
-      <div class="flex items-center gap-2 mb-2">
-        <span id="modalListBadge" class="text-xs px-2.5 py-0.5 rounded-full font-bold bg-slate-100 text-slate-700">To do</span>
-        <span id="modalOverdueBadge" class="hidden text-xs px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-700">⚠️ Overdue</span>
-        <span id="modalBlockedBadge" class="hidden text-xs px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">🚫 Blocked</span>
+      <!-- Modal Header -->
+      <div class="mb-4">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-slate-500 text-base">💳</span>
+          <input id="modalTitle" class="w-full text-xl font-bold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-[#0c66e4] focus:outline-none py-0.5 transition" placeholder="Card title...">
+        </div>
+        <p class="text-xs text-slate-500 ml-6">
+          in list <span id="modalListBadge" class="font-bold text-slate-700 underline decoration-slate-300">To do</span>
+          <span id="modalOverdueBadge" class="hidden ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-700">⚠️ Overdue</span>
+          <span id="modalBlockedBadge" class="hidden ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">🚫 Blocked</span>
+        </p>
       </div>
 
-      <div class="flex-1 overflow-y-auto pr-1 space-y-4">
-        <!-- Title & Status -->
-        <div>
-          <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Card Title</label>
-          <input id="modalTitle" class="w-full text-lg font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-1">
-        </div>
+      <!-- Modal Body (2-Column Trello Layout) -->
+      <div class="flex-1 overflow-y-auto pr-1 grid grid-cols-1 md:grid-cols-3 gap-6">
 
-        <!-- Meta row: Assignee & Due Date -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Assignee</label>
-            <select id="modalAssignee" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-indigo-500">
-              <option value="">Unassigned</option>
-            </select>
-          </div>
-          <div>
-            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Due Date</label>
-            <input id="modalDueDate" type="date" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-indigo-500">
-          </div>
-        </div>
+        <!-- Left Main Column (68% width) -->
+        <div class="md:col-span-2 space-y-5">
 
-        <!-- Labels / Tags -->
-        <div>
-          <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Labels (comma separated)</label>
-          <input id="modalLabels" placeholder="e.g. backend, urgent, v1" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-indigo-500">
-        </div>
+          <!-- Chips Row: Assignee, Labels, Due Date -->
+          <div class="flex flex-wrap items-start gap-4 bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs">
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Members</span>
+              <div id="modalMemberChip" class="flex items-center gap-1.5">
+                <span class="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded-md font-medium">None</span>
+              </div>
+            </div>
 
-        <!-- Description -->
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block">Description & Notes (Markdown supported)</label>
-            <div class="flex gap-1 text-[11px]">
-              <button type="button" id="descTabWrite" onclick="switchDescTab('write')" class="px-2 py-0.5 rounded font-bold bg-slate-200 text-slate-700">Write</button>
-              <button type="button" id="descTabPreview" onclick="switchDescTab('preview')" class="px-2 py-0.5 rounded text-slate-500 hover:text-slate-700">Preview</button>
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Labels</span>
+              <div id="modalLabelsChips" class="flex flex-wrap gap-1">
+                <span class="text-xs text-slate-400 italic">No labels</span>
+              </div>
+            </div>
+
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Due Date</span>
+              <div id="modalDueDateChip" class="text-xs text-slate-700 font-semibold bg-slate-100 px-2 py-1 rounded-md">
+                None
+              </div>
             </div>
           </div>
-          <textarea id="modalDesc" rows="4" placeholder="Add detailed notes or requirements (Markdown supported)..." class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 focus:ring-1 focus:ring-indigo-500 font-mono"></textarea>
-          <div id="modalDescPreview" class="hidden w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 min-h-[96px] markdown-body"></div>
+
+          <!-- Description Section -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                <span>≡</span> <span>Description & Notes</span>
+              </label>
+              <div class="flex gap-1 text-[11px]">
+                <button type="button" id="descTabWrite" onclick="switchDescTab('write')" class="px-2.5 py-0.5 rounded font-bold bg-slate-200 text-slate-700 transition">Write</button>
+                <button type="button" id="descTabPreview" onclick="switchDescTab('preview')" class="px-2.5 py-0.5 rounded text-slate-500 hover:text-slate-800 transition">Preview</button>
+              </div>
+            </div>
+            <textarea id="modalDesc" rows="4" placeholder="Add detailed notes or requirements (Markdown supported)..." class="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-800 focus:ring-2 focus:ring-[#0c66e4] focus:outline-none shadow-xs font-mono"></textarea>
+            <div id="modalDescPreview" class="hidden w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-800 min-h-[96px] markdown-body shadow-xs"></div>
+          </div>
+
+          <!-- Dependencies (Blocked by) -->
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs">
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                <span>🔗</span> <span>Dependencies (Blocked By)</span>
+              </label>
+            </div>
+            <div id="modalBlockersStatus" class="space-y-1"></div>
+          </div>
+
+          <!-- Dodil AI Assistant Powerups Output Box -->
+          <div id="aiOutputBox" class="hidden text-xs bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 text-slate-800 whitespace-pre-wrap max-h-48 overflow-y-auto shadow-xs"></div>
+
+          <!-- Activity History Feed -->
+          <div>
+            <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide mb-2">
+              <span>📜</span> <span>Activity History</span>
+            </label>
+            <div id="cardHistoryTimeline" class="space-y-2 max-h-44 overflow-y-auto pr-1 text-xs">
+              <div class="text-slate-400 italic">No activity recorded yet.</div>
+            </div>
+          </div>
+
         </div>
 
-        <!-- Card Dependencies (Blocked By) -->
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
-          <div class="flex items-center justify-between mb-2">
-            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Blocked By (Dependencies)</label>
-          </div>
-          <p class="text-[11px] text-slate-500 mb-2">Select cards that must be completed before this card can finish:</p>
-          <select id="modalBlockersSelect" multiple size="3" class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-700 focus:ring-1 focus:ring-indigo-500">
-          </select>
-          <div id="modalBlockersStatus" class="mt-2 space-y-1"></div>
-        </div>
+        <!-- Right Action Sidebar (32% width) -->
+        <div class="space-y-4">
+          
+          <!-- Add to Card Section -->
+          <div>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Add to card</span>
+            <div class="space-y-2">
+              
+              <!-- Assignee -->
+              <div>
+                <label class="text-[11px] font-semibold text-slate-600 block mb-0.5">👤 Assignee</label>
+                <select id="modalAssignee" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-[#0c66e4]">
+                  <option value="">Unassigned</option>
+                </select>
+              </div>
 
-        <!-- AI Assistant Powerups -->
-        <div class="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3.5 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-              ✨ AI Powerups (Dodil Models)
-            </span>
+              <!-- Due Date -->
+              <div>
+                <label class="text-[11px] font-semibold text-slate-600 block mb-0.5">📅 Due Date</label>
+                <input id="modalDueDate" type="date" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-[#0c66e4]">
+              </div>
+
+              <!-- Labels -->
+              <div>
+                <label class="text-[11px] font-semibold text-slate-600 block mb-0.5">🏷️ Labels (comma-separated)</label>
+                <input id="modalLabels" placeholder="backend, urgent, v1" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-[#0c66e4]">
+              </div>
+
+              <!-- Blockers Multi-Select -->
+              <div>
+                <label class="text-[11px] font-semibold text-slate-600 block mb-0.5">🔗 Blocker Cards</label>
+                <select id="modalBlockersSelect" multiple size="2" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-slate-700 focus:ring-1 focus:ring-[#0c66e4]">
+                </select>
+              </div>
+
+            </div>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <button onclick="aiGenerateChecklist()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition shadow-sm">
-              Generate Checklist Steps
+
+          <!-- AI Powerups Section -->
+          <div class="pt-2 border-t border-slate-200">
+            <span class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider block mb-2">✨ AI Powerups</span>
+            <div class="space-y-1.5">
+              <button onclick="aiGenerateChecklist()" class="w-full text-left bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold px-2.5 py-2 rounded-lg transition flex items-center gap-1.5">
+                <span>📋</span> <span>Generate Checklist</span>
+              </button>
+              <button onclick="aiFindSimilarCards()" class="w-full text-left bg-white hover:bg-slate-50 text-indigo-700 border border-slate-200 text-xs font-semibold px-2.5 py-2 rounded-lg transition flex items-center gap-1.5">
+                <span>🔍</span> <span>Find Similar Cards</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Actions Section -->
+          <div class="pt-2 border-t border-slate-200">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Actions</span>
+            <button onclick="deleteCurrentCard()" class="can-edit w-full text-left bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold px-2.5 py-2 rounded-lg transition flex items-center gap-1.5">
+              <span>🗑️</span> <span>Delete Card</span>
             </button>
-            <button onclick="aiFindSimilarCards()" class="bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 text-xs font-medium px-3 py-1.5 rounded-lg transition">
-              Find Similar / Duplicate Cards
-            </button>
           </div>
-          <div id="aiOutputBox" class="hidden text-xs bg-white border border-indigo-200 rounded-lg p-3 text-slate-700 whitespace-pre-wrap max-h-40 overflow-y-auto"></div>
+
         </div>
 
-        <!-- Activity History Timeline -->
-        <div>
-          <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Card History</label>
-          <div id="cardHistoryTimeline" class="space-y-2 max-h-44 overflow-y-auto pr-1 text-xs">
-            <div class="text-slate-400 italic">No history recorded yet.</div>
-          </div>
-        </div>
       </div>
 
       <!-- Footer Buttons -->
-      <div class="pt-4 mt-2 border-t border-slate-100 flex items-center justify-between">
-        <button onclick="deleteCurrentCard()" class="text-rose-600 hover:text-rose-700 text-xs font-bold px-3 py-1.5 rounded hover:bg-rose-50 transition can-edit">
-          Delete Card
+      <div class="pt-4 mt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+        <button onclick="closeModal('cardModal')" class="text-slate-600 hover:text-slate-900 text-xs font-semibold px-4 py-2 rounded-lg transition">Cancel</button>
+        <button onclick="saveCardDetails()" class="can-edit bg-[#0c66e4] hover:bg-[#0055cc] text-white text-xs font-bold px-5 py-2 rounded-lg transition shadow-sm">
+          Save Changes
         </button>
-        <div class="flex items-center gap-2">
-          <button onclick="closeModal('cardModal')" class="text-slate-500 hover:text-slate-700 text-xs font-medium px-4 py-2 rounded-lg">Cancel</button>
-          <button onclick="saveCardDetails()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-sm can-edit">
-            Save Changes
-          </button>
-        </div>
       </div>
+
     </div>
   </div>
 
   <!-- New Board Modal -->
-  <div id="newBoardModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="newBoardModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 border border-slate-200">
-      <h3 class="font-extrabold text-base text-slate-800 mb-2">Create New Board</h3>
+      <h3 class="font-black text-base text-slate-900 mb-1">Create New Board</h3>
       <p class="text-xs text-slate-500 mb-4">You will be designated as the owner of this board.</p>
       <form onsubmit="handleCreateBoard(event)">
-        <input id="newBoardTitleInput" placeholder="e.g. Q4 Product Launch" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 mb-4 focus:ring-2 focus:ring-indigo-500">
+        <input id="newBoardTitleInput" placeholder="e.g. Q4 Product Launch" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 mb-4 focus:ring-2 focus:ring-[#0c66e4] focus:outline-none">
         <div class="flex justify-end gap-2">
-          <button type="button" onclick="closeModal('newBoardModal')" class="text-xs px-3 py-2 text-slate-500">Cancel</button>
-          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition">Create Board</button>
+          <button type="button" onclick="closeModal('newBoardModal')" class="text-xs px-3 py-2 text-slate-500 hover:text-slate-700 font-semibold">Cancel</button>
+          <button type="submit" class="bg-[#0c66e4] hover:bg-[#0055cc] text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-sm">Create Board</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Members Management Modal -->
-  <div id="membersModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="membersModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-extrabold text-base text-slate-800">Board Members</h3>
-        <button onclick="closeModal('membersModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+        <h3 class="font-black text-base text-slate-900">Board Members</h3>
+        <button onclick="closeModal('membersModal')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
       </div>
-      <p class="text-xs text-slate-500 mb-4">Owner can invite members or viewers. Viewers have read-only access.</p>
-
-      <div id="membersList" class="space-y-2 mb-4 max-h-48 overflow-y-auto"></div>
+      <p class="text-xs text-slate-500 mb-3">Owner can invite members or viewers. Viewers have read-only access.</p>
+      
+      <div id="membersList" class="space-y-2 mb-4 max-h-48 overflow-y-auto pr-1"></div>
 
       <form id="inviteMemberForm" onsubmit="handleInviteMember(event)" class="pt-3 border-t border-slate-100 flex flex-col gap-2">
-        <label class="text-xs font-bold text-slate-500">Invite New Person</label>
+        <label class="text-xs font-bold text-slate-700">Invite New Person</label>
         <div class="flex gap-2">
-          <input id="inviteEmail" type="email" placeholder="colleague@example.com" required class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs">
-          <select id="inviteRole" class="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-medium">
+          <input id="inviteEmail" type="email" placeholder="colleague@example.com" required class="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-[#0c66e4]">
+          <select id="inviteRole" class="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-700">
             <option value="member">Member</option>
             <option value="viewer">Viewer</option>
           </select>
         </div>
-        <button class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-lg transition">
+        <button class="bg-[#0c66e4] hover:bg-[#0055cc] text-white text-xs font-bold py-2 rounded-lg transition shadow-sm">
           Add Member
         </button>
       </form>
@@ -317,45 +467,47 @@
   </div>
 
   <!-- Activity Log Modal -->
-  <div id="activityModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="activityModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 border border-slate-200">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-extrabold text-base text-slate-800">Board Activity Feed</h3>
-        <button onclick="closeModal('activityModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+        <h3 class="font-black text-base text-slate-900 flex items-center gap-1.5">
+          <span>📜</span> <span>Board Activity Feed</span>
+        </h3>
+        <button onclick="closeModal('activityModal')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
       </div>
-      <div id="boardActivityTimeline" class="space-y-3 max-h-96 overflow-y-auto pr-1 text-xs"></div>
+      <div id="boardActivityTimeline" class="space-y-2.5 max-h-96 overflow-y-auto pr-1 text-xs"></div>
     </div>
   </div>
 
   <!-- AI Summary Modal -->
-  <div id="summaryModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="summaryModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 border border-slate-200">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-extrabold text-base text-violet-900 flex items-center gap-1.5">
-          ✨ AI Daily Standup Summary
+        <h3 class="font-black text-base text-indigo-900 flex items-center gap-1.5">
+          <span>✨</span> <span>AI Daily Standup Summary</span>
         </h3>
-        <button onclick="closeModal('summaryModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+        <button onclick="closeModal('summaryModal')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
       </div>
-      <div id="summaryContent" class="text-xs text-slate-700 leading-relaxed max-h-96 overflow-y-auto bg-violet-50/50 p-4 rounded-xl border border-violet-100 markdown-body">
+      <div id="summaryContent" class="text-xs text-slate-800 leading-relaxed max-h-96 overflow-y-auto bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 markdown-body">
         Generating summary via Dodil Models...
       </div>
     </div>
   </div>
 
   <!-- My Plate Modal -->
-  <div id="myPlateModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="myPlateModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 border border-slate-200">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-extrabold text-base text-slate-800 flex items-center gap-1.5">
-          📌 What's on My Plate
+        <h3 class="font-black text-base text-slate-900 flex items-center gap-1.5">
+          <span>📌</span> <span>What's on My Plate</span>
         </h3>
-        <button onclick="closeModal('myPlateModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+        <button onclick="closeModal('myPlateModal')" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
       </div>
       <div class="mb-3 flex gap-2">
-        <button onclick="loadMyPlate(false)" class="text-xs px-2.5 py-1 bg-slate-100 rounded font-medium">All My Tasks</button>
-        <button onclick="loadMyPlate(true)" class="text-xs px-2.5 py-1 bg-amber-100 text-amber-800 rounded font-medium">Due This Week</button>
+        <button onclick="loadMyPlate(false)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded font-semibold text-slate-700 transition">All My Tasks</button>
+        <button onclick="loadMyPlate(true)" class="text-xs px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold transition">Due This Week</button>
       </div>
-      <div id="myPlateList" class="space-y-2 max-h-80 overflow-y-auto text-xs"></div>
+      <div id="myPlateList" class="space-y-2 max-h-80 overflow-y-auto text-xs pr-1"></div>
     </div>
   </div>
 
