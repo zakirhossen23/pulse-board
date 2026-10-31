@@ -152,6 +152,11 @@ def build_router(boards: Boards) -> APIRouter:
     def find_similar(card_id: str, request: Request):
         return run(boards.find_similar_cards, me(request), card_id)
 
+    @r.get("/favicon.ico", include_in_schema=False)
+    def favicon():
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚡</text></svg>'
+        return Response(content=svg, media_type="image/svg+xml")
+
     @r.get("/static/app.js")
     def serve_app_js():
         return Response(content=load_static("app.js"), media_type="application/javascript")
