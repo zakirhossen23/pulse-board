@@ -1,9 +1,13 @@
 # PulseBoard: The Trello Replacement on Dodil
 
-[![CI](https://github.com/dodil/boards-challenge/actions/workflows/ci.yml/badge.svg)](https://git.dodil.io)
+[![CI](https://git.dodil.io/merchant-eye/pulse-board/actions/workflows/ci.yml/badge.svg)](https://git.dodil.io/merchant-eye/pulse-board)
+[![GitHub](https://img.shields.io/badge/GitHub-zakirhossen23%2Fpulse--board-blue?logo=github)](https://github.com/zakirhossen23/pulse-board)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **PulseBoard** is a modern, collaborative team task board built natively on **Dodil cloud services** (DataK3, appid, Ignite, Dodil Models) with a dual-door architecture: a responsive drag-and-drop web application and a rich **Model Context Protocol (MCP)** interface for Claude and ChatGPT.
+
+- **Dodil Git (Official Contest Entry)**: [https://git.dodil.io/merchant-eye/pulse-board](https://git.dodil.io/merchant-eye/pulse-board)
+- **GitHub Mirror**: [https://github.com/zakirhossen23/pulse-board](https://github.com/zakirhossen23/pulse-board)
 
 Anyone can **remix** PulseBoard into their own Dodil organization with a single command and have a live, fully-functional Kanban board running in minutes.
 
