@@ -3,9 +3,12 @@
 The remix generated the service account and put its id and secret into the repo's CI secrets;
 .dodil/deploy.yaml hands them to the app as environment variables.
 """
+import json
 import os
+import re
 import threading
 import time
+from typing import List
 
 import httpx
 import psycopg
@@ -55,7 +58,29 @@ def chat(prompt: str) -> str:
 
 
 class ModelsAssistant:
-    def checklist(self, card_title: str) -> list:
+    def checklist(self, card_title: str) -> List[str]:
         text = chat("Break this task into a short checklist of 3 to 6 concrete steps. "
                     "One step per line, no numbering, nothing else.\n\nTask: " + card_title)
-        return [line.strip("-*• ").strip() for line in text.splitlines() if line.strip()][:8]
+        return [line.strip("-*• 0123456789.").strip() for line in text.splitlines() if line.strip()][:8]
+
+    def summary(self, board_title: str, cards_summary: str) -> str:
+        prompt = (f"Provide a concise daily standup summary for the project board '{board_title}'. "
+                  f"Highlight key progress, what's currently in progress, what's overdue or needs urgent attention, "
+                  f"and recommendations.\n\nCards:\n{cards_summary}")
+        return chat(prompt)
+
+    def find_similar(self, target_title: str, candidate_titles: List[dict]) -> List[dict]:
+        candidates_str = "\n".join([f"- ID: {c['id']} | Title: {c['title']} | Status: {c['list_name']}" for c in candidate_titles])
+        prompt = (f"Given the task '{target_title}', identify which of the following tasks are conceptually related, "
+                  f"similar, or dependent.\n\nCandidates:\n{candidates_str}\n\n"
+                  f"Output ONLY a JSON array of objects with keys 'id', 'title', 'reason', e.g. [{{'id': '...', 'title': '...', 'reason': '...'}}]. If none, output [].")
+        res = chat(prompt)
+        match = re.search(r"\[.*\]", res, re.DOTALL)
+        if match:
+            try:
+                parsed = json.loads(match.group(0))
+                if isinstance(parsed, list):
+                    return parsed
+            except Exception:
+                pass
+        return []

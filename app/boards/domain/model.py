@@ -5,7 +5,7 @@ Extend HERE first: a rule written in the domain holds for the web page and for C
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
 LISTS = ("To do", "Doing", "Done")
 
@@ -36,13 +36,24 @@ class Card:
     board_id: str
     title: str
     list_name: str = LISTS[0]
+    description: str = ""
     assignee: Optional[str] = None
     due_date: Optional[date] = None
+    labels: List[str] = field(default_factory=list)
+    blocked_by: List[str] = field(default_factory=list)
 
     def move_to(self, list_name: str) -> None:
         if list_name not in LISTS:
             raise Invalid(f"unknown list {list_name!r}; lists are {', '.join(LISTS)}")
         self.list_name = list_name
+
+    def is_overdue(self, today: Optional[date] = None) -> bool:
+        if not self.due_date:
+            return False
+        if self.list_name == "Done":
+            return False
+        ref = today or date.today()
+        return self.due_date < ref
 
 
 @dataclass
@@ -53,9 +64,9 @@ class Board:
     members: dict = field(default_factory=dict)  # email -> Role
 
     def role_of(self, person: Person) -> Optional[Role]:
-        if person.email == self.owner_email:
+        if person.email.lower() == self.owner_email.lower():
             return Role.OWNER
-        return self.members.get(person.email)
+        return self.members.get(person.email.lower())
 
     def require_view(self, person: Person) -> None:
         if self.role_of(person) is None:
@@ -68,9 +79,26 @@ class Board:
         if role is Role.VIEWER:
             raise Forbidden("viewers can't change the board")
 
-    def add_member(self, by: Person, email: str, role: Role) -> None:
-        if self.role_of(by) is not Role.OWNER:
+    def require_owner(self, person: Person) -> None:
+        if self.role_of(person) is not Role.OWNER:
             raise Forbidden("only the owner manages members")
+
+    def add_member(self, by: Person, email: str, role: Role) -> None:
+        self.require_owner(by)
+        email_clean = email.strip().lower()
+        if not email_clean:
+            raise Invalid("member email is required")
+        if email_clean == self.owner_email.lower():
+            raise Invalid("owner is already on the board")
         if role is Role.OWNER:
             raise Invalid("a board has one owner")
-        self.members[email.strip().lower()] = role
+        self.members[email_clean] = role
+
+    def remove_member(self, by: Person, email: str) -> None:
+        self.require_owner(by)
+        email_clean = email.strip().lower()
+        if email_clean == self.owner_email.lower():
+            raise Invalid("cannot remove board owner")
+        if email_clean not in self.members:
+            raise Invalid(f"{email_clean} is not a member of this board")
+        del self.members[email_clean]
