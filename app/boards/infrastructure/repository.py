@@ -136,17 +136,19 @@ class SqlBoards:
     def activity_for_card(self, card_id: str) -> List[dict]:
         with connect() as c:
             rows = c.execute(
-                "SELECT id, board_id, card_id, actor, action, to_char(event_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') "
+                "SELECT id, board_id, card_id, actor, action, event_at "
                 "FROM activity WHERE card_id = %s ORDER BY event_at DESC LIMIT 50",
                 (card_id,)).fetchall()
-        return [{"id": r[0], "board_id": r[1], "card_id": r[2], "actor": r[3], "action": r[4], "event_at": r[5]}
+        return [{"id": r[0], "board_id": r[1], "card_id": r[2], "actor": r[3], "action": r[4],
+                 "event_at": r[5].isoformat() if hasattr(r[5], "isoformat") else str(r[5]) if r[5] else ""}
                 for r in rows]
 
     def activity_for_board(self, board_id: str, limit: int = 50) -> List[dict]:
         with connect() as c:
             rows = c.execute(
-                "SELECT id, board_id, card_id, actor, action, to_char(event_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') "
+                "SELECT id, board_id, card_id, actor, action, event_at "
                 "FROM activity WHERE board_id = %s ORDER BY event_at DESC LIMIT %s",
                 (board_id, limit)).fetchall()
-        return [{"id": r[0], "board_id": r[1], "card_id": r[2], "actor": r[3], "action": r[4], "event_at": r[5]}
+        return [{"id": r[0], "board_id": r[1], "card_id": r[2], "actor": r[3], "action": r[4],
+                 "event_at": r[5].isoformat() if hasattr(r[5], "isoformat") else str(r[5]) if r[5] else ""}
                 for r in rows]
